@@ -23,13 +23,13 @@ export function explain(match: RuleMatch, t: TargetName | (() => Target)): strin
 			const sourcePath =
 				(match.source?.path ?? nos) +
 				("range" in match.rule && match.rule.range ? `:${match.rule.range.join(":")}` : "")
-			reason = `${status} by ${targetName} because ${pattern.startsWith("//") ? pattern : `of '${pattern}' in ${sourcePath}`}`
+			reason = `${status} by ${targetName} because ${pattern.startsWith("//") ? `it's ${pattern.slice(2)}` : `of '${pattern}' in ${sourcePath}`}`
 			break
 		}
 		case RuleMatchKind.internal: {
 			const pattern =
 				("excludes" in match.rule && match.rule.excludes ? "!" : "") + String(match.pattern)
-			reason = `${status} by ${targetName} because ${pattern.startsWith("//") ? pattern : `of '${pattern}'`} (internal pattern source)`
+			reason = `${status} by ${targetName} because ${pattern.startsWith("//") ? `it's ${pattern.slice(2)}` : `of '${pattern}'`} (internal pattern source)`
 			break
 		}
 		case RuleMatchKind.noMatch: {

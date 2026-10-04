@@ -5,7 +5,6 @@ import {
 	MatcherContext,
 	matcherContextAddPath,
 	matcherContextRemovePath,
-	RuleMatch,
 } from "view-ignored/patterns"
 import { Target } from "view-ignored/targets"
 import * as vscode from "vscode"
@@ -13,7 +12,7 @@ import * as vscode from "vscode"
 import { getTarget, setInvert, setScanning, setTarget } from "./context.js"
 import { explain } from "./explain.js"
 import { output } from "./output.js"
-import { parseUri, pathToUri } from "./parseUri.js"
+import { parseUri } from "./parseUri.js"
 import { printErr } from "./printErr.js"
 import { Semaphore } from "./semaphore.js"
 import { nameFromTargetMaker, targetMakerFromName } from "./targetName.js"
@@ -26,8 +25,6 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 	private mutexWatcher = new Semaphore(1)
 	private readonly onDidChange = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>()
 	readonly onDidChangeFileDecorations = this.onDidChange.event.bind(this.onDidChange)
-
-	private decorations = new Map<string, DecorationKind>()
 
 	private contexts: Map<string, MatcherContext> = new Map()
 
@@ -110,7 +107,6 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		this.options.target = targetMaker()
 		this.options.invert = options.invert
 
-		this.decorations.clear()
 		this.contexts.clear()
 		this.onDidChange.fire(undefined)
 
@@ -137,26 +133,8 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 			output.info("Scanned " + ctx.paths.size + " paths in " + ms(Date.now() - start))
 			this.isTemporary = false
 			this.contexts.set(cwd, ctx)
-			for (const [file, match] of ctx.paths) {
-				if (options.signal?.aborted) return
-				const uri = pathToUri(cwd, file)
-				this.add(uri, match)
-			}
-			output.info("Normalized in " + ms(Date.now() - start))
+			this.onDidChange.fire(undefined)
 		}
-	}
-
-	add(uri: vscode.Uri, match: RuleMatch): void {
-		const f = parseUri(uri)
-		if (!f) return
-		const decoration = match.ignored ? "ignored" : "included"
-		this.decorations.set(uri.fsPath, decoration)
-		setImmediate(() => this.onDidChange.fire(uri))
-	}
-
-	del(uri: vscode.Uri): void {
-		this.decorations.delete(uri.fsPath)
-		setImmediate(() => this.onDidChange.fire(uri))
 	}
 
 	private async watchPatch(
@@ -177,14 +155,12 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		const signal = this.options.signal
 		for (const element of added) {
 			if (signal?.aborted) return
-			const uri = pathToUri(f.cwd, element)
-			this.add(uri, ctx.paths.get(f.entry)!)
+			matcherContextAddPath(ctx, { cwd: f.cwd, ...this.options, signal }, element)
 		}
 		if (removed.length > 0) output.info("Deleted " + f.entry + ":", removed)
 		for (const element of removed) {
 			if (signal?.aborted) return
-			const uri = pathToUri(f.cwd, element)
-			this.del(uri)
+			matcherContextRemovePath(ctx, { cwd: f.cwd, ...this.options, signal }, element)
 		}
 	}
 
@@ -286,36 +262,29 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 			this.options.target = null as unknown as Target
 			this.options.invert = false
 		}
-		if (this.decorations.size === 0) return
+		if (this.contexts.size === 0) return
 		const start = Date.now()
 		output.info("Clearing...")
-		this.decorations.clear()
 		this.contexts.clear()
 		this.onDidChange.fire(undefined)
 		output.info("Cleared in " + ms(Date.now() - start))
 	}
 
 	provideFileDecoration(uri: vscode.Uri): vscode.ProviderResult<vscode.FileDecoration> {
-		const state = this.decorations.get(uri.fsPath)
-		if (!state) return
 		const parsed = parseUri(uri)
 		if (!parsed) return
 		const ctx = this.contexts.get(parsed.cwd)
 		if (!ctx) return
 		const match = ctx.paths.get(parsed.entry)
+		if (!match) return
 		const tooltip = match
 			? explain(match, targetMakerFromName(getTarget(true)))
 			: "Internal error: could not find '" + parsed.entry + "'"
 		const propagate = true
-		let badge: string
-		switch (state) {
-			case "ignored":
-				badge = "-"
-				return { badge, tooltip, propagate }
-			case "included":
-				badge = "+"
-				return { badge, tooltip, propagate }
-		}
+		const {invert} = this.options
+		if (typeof invert === "boolean" && invert !== match.ignored) return
+		const badge = match.ignored ? "-" : "+"
+		return { badge, tooltip, propagate }
 	}
 
 	async deinit(): Promise<void> {

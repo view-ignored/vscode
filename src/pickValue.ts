@@ -73,7 +73,7 @@ export async function pickTarget(
 	none = false,
 ): Promise<{ targetName: string; invert: boolean | 2 } | undefined> {
 	const currentTarget = getTarget()
-	let inver: boolean | 2 = false
+	let invert: boolean | 2 = false
 	const { errored, related } = await relatedTargetMakers()
 	const targetNamesToShow = related.map(nameFromTargetMaker)
 	if (!["None", ...targetNamesToShow].includes(currentTarget)) {
@@ -118,10 +118,10 @@ export async function pickTarget(
 			})),
 		],
 		(_item, { tooltip }) => {
-			inver = tooltip === "Show Included" ? false : tooltip === "Show Both" ? 2 : true
+			invert = tooltip === "Show Included" ? false : tooltip === "Show Both" ? 2 : true
 		},
 	)
 
 	if (!targetName) return undefined
-	return { targetName: targetName, invert: inver }
+	return { targetName, invert }
 }

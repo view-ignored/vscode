@@ -5,6 +5,7 @@ import { output } from "./output.js"
 
 export function parseUri(uri: vscode.Uri): { entry: string; cwd: string } | void {
 	if (uri.scheme !== "file") {
+		if (["vscode-agent-host"].includes(uri.scheme)) return
 		output.warn("Ignoring '" + uri.scheme + "' uri scheme for ", uri)
 		return
 	}
