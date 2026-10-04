@@ -69,18 +69,12 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		const l = vscode.workspace.onDidChangeWorkspaceFolders(async () => {
 			output.info("Locked workspace folders listener mutexWorspaceFolderChange")
 			using folders = this.mutexWorspaceFolderChange.tryAcquire()
-			using _logFolders = {
-				[Symbol.dispose]: () =>
-					output.info("Unlocked workspace folders listener mutexWorspaceFolderChange"),
-			}
-			if (!folders) {
-				return
-			}
+			using stack = new DisposableStack();
+			stack.defer(() => output.info("Unlocked workspace folders listener mutexWorspaceFolderChange"))
+			if (!folders) return
 			output.info("Locked workspace folders listener mutexWatcher")
-			using _scanning = this.mutexWatcher.tryAcquire()
-			using _logScanning = {
-				[Symbol.dispose]: () => output.info("Unlocked workspace folders listener mutexWatcher"),
-			}
+			stack.use(this.mutexWatcher.tryAcquire())
+			stack.defer(() => output.info("Unlocked workspace folders listener mutexWatcher"))
 			await this.scan(options)
 		})
 
@@ -102,13 +96,12 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 	): Promise<void> {
 		setScanning(true)
 		const start = Date.now()
-		output.info("Constructing...")
-		using _logSelf = {
-			[Symbol.dispose]: () => {
-				setScanning(false)
-				output.info("Constructed in " + ms(Date.now() - start))
-			},
-		}
+		output.info("Preparing to scan...")
+		using stack = new DisposableStack();
+		stack.defer(() => {
+			setScanning(false)
+			output.info("Constructed in " + ms(Date.now() - start))
+		})
 		const targetMaker = options.target
 		options.invert ??= false
 		assignOpt(this.options, options)
@@ -132,13 +125,14 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 					setInvert(options.invert)
 				}
 			} catch (cause) {
-				printErr(new Error("Unable to scan", { cause }))
-				vscode.window.showErrorMessage("Unable to scan", "Show output").then((choice) => {
+				const message = "Scanned with exception in " + ms(Date.now() - start)
+				printErr(new Error(message, { cause }))
+				vscode.window.showErrorMessage(message, "Show output").then((choice) => {
 					if (choice === "Show output") output.show()
 				})
 				continue
 			}
-			output.info("Scanned in " + ms(Date.now() - start))
+			output.info("Scanned " + ctx.paths.size + " paths in " + ms(Date.now() - start))
 			this.isTemporary = false
 			this.contexts.set(cwd, ctx)
 			for (const [file, match] of ctx.paths) {
@@ -168,11 +162,7 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		f: { cwd: string; entry: string },
 		cb: (ctx: MatcherContext, f: { cwd: string; entry: string }) => Promise<void>,
 	): Promise<void> {
-		const start = Date.now()
-		output.info("Handling " + eventName + "...")
-		using _logSelf = {
-			[Symbol.dispose]: () => output.info("Handled " + eventName + " in " + ms(Date.now() - start)),
-		}
+		output.info("Got '" + eventName + "' event")
 		const ctx = this.contexts.get(f.cwd)
 		if (!ctx) return
 		const before = new Set(ctx.paths.keys())
@@ -272,13 +262,9 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		const start = Date.now()
 		output.info(`Locked/Waiting processing batch of ${batch.length} file system events`)
 
-		using _mutex = await this.mutexWatcher.acquire()
-
-		using _notScanning = {
-			[Symbol.dispose]: () => {
-				output.info(`Unlocked/Updated batch of ${batch.length} events in ` + ms(Date.now() - start))
-			},
-		}
+		using stack = new DisposableStack()
+		stack.use(await this.mutexWatcher.acquire())
+		stack.defer(() => output.info(`Unlocked/Updated batch of ${batch.length} events in ` + ms(Date.now() - start)))
 
 		for (const task of batch) {
 			if (this.aborter.signal.aborted) break
@@ -337,7 +323,8 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 			this.watchDebounceTimer = null
 		}
 		this.watchQueue = []
-		using _mutex = await this.mutexWatcher.acquire()
+		using stack = new DisposableStack()
+		stack.use(await this.mutexWatcher.acquire())
 		if (!this.aborter.signal.aborted) this.aborter.abort()
 
 		this.aborter = new AbortController()
