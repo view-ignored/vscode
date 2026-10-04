@@ -12,26 +12,30 @@ export function explain(match: RuleMatch, t: TargetName | (() => Target)): strin
 	const potential =
 		target.extractors.length === 0
 			? "no potential sources"
-			: `potential sources: '${target.extractors.map((e) => e.path).join("', '")}'`
+			: `potential sources: ${target.extractors.map((e) => e.path).join(", ")}`
 	const nos = "<no source path>"
 
 	let reason = ""
 	switch (match.kind) {
 		case RuleMatchKind.external: {
-			const sourcePath = match.source?.path ?? nos
-			const pattern = String(match.pattern)
-			reason = `${status} by ${targetName} because of '${pattern}' pattern in '${sourcePath}'`
+			const pattern =
+				("excludes" in match.rule && match.rule.excludes ? "!" : "") + String(match.pattern)
+			const sourcePath =
+				(match.source?.path ?? nos) +
+				("range" in match.rule && match.rule.range ? `:${match.rule.range.join(":")}` : "")
+			reason = `${status} by ${targetName} because ${pattern.startsWith("//") ? pattern : `of '${pattern}' in ${sourcePath}`}`
 			break
 		}
 		case RuleMatchKind.internal: {
-			const pattern = String(match.pattern)
-			reason = `${status} by ${targetName} because of '${pattern}' pattern (internal pattern source)`
+			const pattern =
+				("excludes" in match.rule && match.rule.excludes ? "!" : "") + String(match.pattern)
+			reason = `${status} by ${targetName} because ${pattern.startsWith("//") ? pattern : `of '${pattern}'`} (internal pattern source)`
 			break
 		}
 		case RuleMatchKind.noMatch: {
 			const sourcePath = match.source?.path ?? nos
 			const action = (match.source?.inverted ?? true) ? "excludes" : "includes"
-			reason = `${status} by ${targetName} because '${sourcePath}' ${action} it (no matching patterns)`
+			reason = `${status} by ${targetName} because ${sourcePath} ${action} it (no matching patterns)`
 			break
 		}
 		case RuleMatchKind.missingSource:
@@ -40,17 +44,17 @@ export function explain(match: RuleMatch, t: TargetName | (() => Target)): strin
 		case RuleMatchKind.invalidSource: {
 			const sourcePath = match.source?.path ?? nos
 			if ((match.error as any).code === "ENOENT") {
-				reason = `${status} by ${targetName} because '${sourcePath}' was not found`
+				reason = `${status} by ${targetName} because ${sourcePath} was not found`
 				printErr(
-					new Error(`Expected file in '${sourcePath}'`, {
+					new Error(`Expected file in ${sourcePath}`, {
 						cause: match.error!,
 					}),
 				)
 				break
 			}
-			reason = `${status} by ${targetName} because '${sourcePath}' has broken syntax`
+			reason = `${status} by ${targetName} because ${sourcePath} has broken syntax`
 			printErr(
-				new Error(`Broken syntax in '${sourcePath}'`, {
+				new Error(`Broken syntax in ${sourcePath}`, {
 					cause: match.error!,
 				}),
 			)
@@ -61,10 +65,12 @@ export function explain(match: RuleMatch, t: TargetName | (() => Target)): strin
 			printErr(new Error("Broken internal patterns", { cause: match.error! }))
 			break
 		case RuleMatchKind.invalidExternal: {
-			const sourcePath = match.source?.path ?? nos
-			reason = `${status} by ${targetName} because '${sourcePath}' has broken patterns`
+			const sourcePath =
+				(match.source?.path ?? nos) +
+				("range" in match.rule && match.rule.range ? `:${match.rule.range.join(":")}` : "")
+			reason = `${status} by ${targetName} because ${sourcePath} has broken patterns`
 			printErr(
-				new Error(`Broken patterns in '${sourcePath}'`, {
+				new Error(`Broken patterns in ${sourcePath}`, {
 					cause: match.error!,
 				}),
 			)

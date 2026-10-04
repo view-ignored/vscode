@@ -69,8 +69,10 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		const l = vscode.workspace.onDidChangeWorkspaceFolders(async () => {
 			output.info("Locked workspace folders listener mutexWorspaceFolderChange")
 			using folders = this.mutexWorspaceFolderChange.tryAcquire()
-			using stack = new DisposableStack();
-			stack.defer(() => output.info("Unlocked workspace folders listener mutexWorspaceFolderChange"))
+			using stack = new DisposableStack()
+			stack.defer(() =>
+				output.info("Unlocked workspace folders listener mutexWorspaceFolderChange"),
+			)
 			if (!folders) return
 			output.info("Locked workspace folders listener mutexWatcher")
 			stack.use(this.mutexWatcher.tryAcquire())
@@ -97,7 +99,7 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		setScanning(true)
 		const start = Date.now()
 		output.info("Preparing to scan...")
-		using stack = new DisposableStack();
+		using stack = new DisposableStack()
 		stack.defer(() => {
 			setScanning(false)
 			output.info("Constructed in " + ms(Date.now() - start))
@@ -264,7 +266,9 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 
 		using stack = new DisposableStack()
 		stack.use(await this.mutexWatcher.acquire())
-		stack.defer(() => output.info(`Unlocked/Updated batch of ${batch.length} events in ` + ms(Date.now() - start)))
+		stack.defer(() =>
+			output.info(`Unlocked/Updated batch of ${batch.length} events in ` + ms(Date.now() - start)),
+		)
 
 		for (const task of batch) {
 			if (this.aborter.signal.aborted) break
