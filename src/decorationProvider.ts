@@ -12,7 +12,7 @@ import * as vscode from "vscode"
 import { getTarget, setInvert, setScanning, setTarget } from "./context.js"
 import { explain } from "./explain.js"
 import { output } from "./output.js"
-import { parseUri } from "./parseUri.js"
+import { parseUri, pathToUri } from "./parseUri.js"
 import { printErr } from "./printErr.js"
 import { Semaphore } from "./semaphore.js"
 import { nameFromTargetMaker, targetMakerFromName } from "./targetName.js"
@@ -133,7 +133,7 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 			output.info("Scanned " + ctx.paths.size + " paths in " + ms(Date.now() - start))
 			this.isTemporary = false
 			this.contexts.set(cwd, ctx)
-			this.onDidChange.fire(undefined)
+			this.notifyDecorationsChanged()
 		}
 	}
 
@@ -252,6 +252,8 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 			if (!f) continue
 			await this.watchPatch(task.eventName, f, task.cb)
 		}
+
+		if (!this.aborter.signal.aborted) this.notifyDecorationsChanged()
 	}
 
 	async clear(save = true): Promise<void> {
@@ -270,6 +272,43 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 		output.info("Cleared in " + ms(Date.now() - start))
 	}
 
+	private getRepresentativeChildUris(): vscode.Uri[] {
+		const uris: vscode.Uri[] = []
+		const invert = this.options.invert
+
+		for (const [cwd, ctx] of this.contexts) {
+			const dirToChildFile = new Map<string, string>()
+
+			for (const [entry, match] of ctx.paths) {
+				if (!match) continue
+				if (typeof invert === "boolean" && invert !== match.ignored) continue
+
+				const normalizedEntry = entry.replaceAll("\\", "/")
+				const parts = normalizedEntry.split("/")
+				if (parts.length <= 1) continue
+
+				let currentDir = ""
+				for (const part of parts) {
+					currentDir = currentDir ? currentDir + "/" + part : part
+					if (!dirToChildFile.has(currentDir)) dirToChildFile.set(currentDir, normalizedEntry)
+				}
+			}
+
+			const uniqueEntries = new Set(dirToChildFile.values())
+			for (const entry of uniqueEntries) {
+				uris.push(pathToUri(cwd, entry))
+			}
+		}
+
+		return uris
+	}
+
+	private notifyDecorationsChanged(): void {
+		this.onDidChange.fire(undefined)
+		const uris = this.getRepresentativeChildUris()
+		if (uris.length > 0) this.onDidChange.fire(uris)
+	}
+
 	provideFileDecoration(uri: vscode.Uri): vscode.ProviderResult<vscode.FileDecoration> {
 		const parsed = parseUri(uri)
 		if (!parsed) return
@@ -281,7 +320,7 @@ export class DecorationProvider implements vscode.FileDecorationProvider, vscode
 			? explain(match, targetMakerFromName(getTarget(true)))
 			: "Internal error: could not find '" + parsed.entry + "'"
 		const propagate = true
-		const {invert} = this.options
+		const { invert } = this.options
 		if (typeof invert === "boolean" && invert !== match.ignored) return
 		const badge = match.ignored ? "-" : "+"
 		return { badge, tooltip, propagate }
