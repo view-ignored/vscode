@@ -7,7 +7,7 @@
       "dependencies": {
         "ms": "^2.1.3",
         "simple-icons": "^16.34.0",
-        "view-ignored": "^0.13.0",
+        "view-ignored": "^0.13.1",
       },
       "devDependencies": {
         "@types/ms": "latest",
@@ -736,7 +736,7 @@
 
     "version-range": ["version-range@4.15.0", "", {}, "sha512-Ck0EJbAGxHwprkzFO966t4/5QkRuzh+/I1RxhLgUKKwEn+Cd8NwM60mE3AqBZg5gYODoXW0EFsQvbZjRlvdqbg=="],
 
-    "view-ignored": ["view-ignored@0.13.0", "", { "dependencies": { "strip-json-comments": "^5.0.3", "zeptomatch": "^2.1.0" }, "bin": { "vign-diff": "out/cli/vign-diff.js" } }, "sha512-q5aPWRsf7AGYfcHj2kFwnN1rTAtQAowL/Ei9CDOkwb4EGjiZL3sodv+4BAveddiUqzTWM4AjLtizpLaUaLGyYA=="],
+    "view-ignored": ["view-ignored@0.13.1", "", { "dependencies": { "strip-json-comments": "^5.0.3", "zeptomatch": "^2.1.0" }, "bin": { "vign-diff": "out/cli/vign-diff.js" } }, "sha512-X/sm8Im0ewc4AmzeHNP+TGVtjY7ScnXogqET3g2aNJgqmpJAX3F4k4iRknm4+sgTOBfcaz12+UpsEL45nyAIrg=="],
 
     "which": ["which@1.3.1", "", { "dependencies": { "isexe": "^2.0.0" }, "bin": "bin/which" }, "sha512-HxJdYWq1MTIQbJ3nw0cqssHoTNU267KlrDuGZ1WYlxDStUtKUhOaJmh112/TZmHxxUfuJqPXSOm7tDyas0OSIQ=="],
 
