@@ -1,5 +1,7 @@
 .vscode/**
+.github/**
 .vscode-test/**
+release.config.cjs
 out/**
 node_modules/**
 src/**
